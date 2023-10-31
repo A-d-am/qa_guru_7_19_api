@@ -1,37 +1,52 @@
-import requests
 from qa_guru_7_19_api.utils import load_schema
 from qa_guru_7_19_api import response_validation
+from allure_commons.types import AttachmentType
+from requests import sessions
+from curlify import to_curl
 import allure
+import json
 
-base_url = 'https://reqres.in'
+
+def reqres_api(method, url, **kwargs):
+    args = kwargs
+    base_url = "https://reqres.in"
+    new_url = base_url + url
+    method = method.upper()
+    with allure.step(f'Отправляем запрос {method} {url} {args if len(args) != 0 else ''}'):
+        with sessions.Session() as session:
+            response = session.request(method=method, url=new_url, **kwargs)
+            message = to_curl(response.request)
+            allure.attach(body=message.encode("utf8"), name="Curl", attachment_type=AttachmentType.TEXT,
+                          extension='txt')
+            allure.attach(body=json.dumps(response.json(), indent=4).encode("utf8"), name="Response Json",
+                          attachment_type=AttachmentType.JSON, extension='json')
+    return response
+
 
 def get_total_users():
-    response = requests.get(url=f'{base_url}/api/users/?page=2')
+    response = reqres_api('get', '/api/users/?page=2')
     total_users = response.json()['total']
     return total_users
 
 
-
-
 def test_ok_status_code():
-    with allure.step('Отправляем запрос GET /api/users/2'):
-        response = requests.get(url=f'{base_url}/api/users/2')
+    response = reqres_api('get', '/api/users/2')
     response_validation.check_status_code(200, response)
 
 
 def test_get_users():
-    schema = load_schema('reqres_api','get_users.json')
-    with allure.step('Отправляем запрос GET /api/users?page=2'):
-        response = requests.get(url=f'{base_url}/api/users?page=2')
+    schema = load_schema('reqres_api', 'get_users.json')
+
+    response = reqres_api('get', '/api/users?page=2')
 
     response_validation.check_status_code(200, response)
     response_validation.check_response_json_schema(schema, response)
 
 
 def test_get_user():
-    schema = load_schema('reqres_api','get_single_user.json')
-    with allure.step('Отправляем запрос GET /api/users/2'):
-        response = requests.get(url=f'{base_url}/api/users/2')
+    schema = load_schema('reqres_api', 'get_single_user.json')
+
+    response = reqres_api('get', '/api/users/2')
 
     response_validation.check_status_code(200, response)
     response_validation.check_response_json_schema(schema, response)
@@ -41,40 +56,41 @@ def test_get_user_not_found():
     total_users = int(get_total_users())
     more_than_expected_users_amount = total_users + 2
 
-    with allure.step(f'Отправляем запрос GET /api/users/{more_than_expected_users_amount}'):
-        response_with_404 = requests.get(url=f'{base_url}/api/users/{more_than_expected_users_amount}')
+    response = reqres_api('get', f'/api/users/{more_than_expected_users_amount}')
 
-    response_validation.check_status_code(404, response_with_404)
+    response_validation.check_status_code(404, response)
 
 
 def test_create_user():
-    schema = load_schema('reqres_api','create_user.json')
+    schema = load_schema('reqres_api', 'create_user.json')
 
-    with allure.step('Отправляем POST /api/users'):
-        response = requests.post(
-            url=f'{base_url}/api/users',
-            json={
-                "name": "Vova",
-                "job": "QA"
-            }
-        )
+    response = reqres_api(
+        'post',
+        '/api/users',
+        json={
+            "name": "Vova",
+            "job": "QA"
+        }
+    )
 
     response_validation.check_status_code(201, response)
     response_validation.check_response_json_schema(schema, response)
 
 
 def test_put_user():
-    schema = load_schema('reqres_api','put_user.json')
+    schema = load_schema('reqres_api', 'put_user.json')
     name = "morpheus"
     job = "zion resisdent"
-    with allure.step(f'Отправляем PUT /api/users/2 c name={name}, job={job}'):
-        response = requests.put(
-            url=f'{base_url}/api/users/2',
-            json={
-                "name": name,
-                "job": job
-            }
-        )
+
+    response = reqres_api(
+        'put',
+        '/api/users/2',
+        json={
+            "name": name,
+            "job": job
+        }
+    )
+
     response_validation.check_status_code(200, response)
     response_validation.check_response_json_schema(schema, response)
 
@@ -82,16 +98,16 @@ def test_put_user():
 def test_post_successful_login():
     email = "eve.holt@reqres.in"
     password = "cityslicka"
-    schema = load_schema('reqres_api','post_success_login.json')
+    schema = load_schema('reqres_api', 'post_success_login.json')
 
-    with allure.step(f'Отправляем запрос POST /api/login c email ={email}, password={password}'):
-        response = requests.post(
-            url=f'{base_url}/api/login',
-            json={
-                "email": email,
-                "password": password
-            }
-        )
+    response = reqres_api(
+        'post',
+        '/api/login',
+        json={
+            "email": email,
+            "password": password
+        }
+    )
 
     response_validation.check_status_code(200, response)
     response_validation.check_response_json_schema(schema, response)
@@ -100,13 +116,13 @@ def test_post_successful_login():
 def test_post_unsuccessful_login():
     email = "peter@klaven"
 
-    with allure.step(f'Отправляем запрос POST /api/login c email={email}'):
-        response = requests.post(
-            url=f'{base_url}/api/login',
-            json={
-                "email": email
-            }
-        )
+    response = reqres_api(
+        'post',
+        '/api/login',
+        json={
+            "email": email
+        }
+    )
 
     response_validation.check_status_code(400, response)
     with allure.step('Проверяем, что пришла ошибка "Missing password"'):
@@ -114,14 +130,19 @@ def test_post_unsuccessful_login():
 
 
 def test_post_successful_registration():
-    schema = load_schema('reqres_api','post_register_user.json')
-    response = requests.post(
-        url=f'{base_url}/api/register',
+    email = "eve.holt@reqres.in"
+    password = "pistol"
+    schema = load_schema('reqres_api', 'post_register_user.json')
+
+    response = reqres_api(
+        'post',
+        '/api/register',
         json={
-            "email": "eve.holt@reqres.in",
-            "password": "pistol"
+            "email": email,
+            "password": password
         }
     )
+
     response_validation.check_status_code(200, response)
     response_validation.check_response_json_schema(schema, response)
 
@@ -129,13 +150,13 @@ def test_post_successful_registration():
 def test_post_unsuccessful_registration():
     email = "sydney@fife"
 
-    with allure.step('Отправляем запрос POST /api/register'):
-        response = requests.post(
-            url=f'{base_url}/api/register',
-            json={
-                "email": email
-            }
-        )
+    response = reqres_api(
+        'post',
+        '/api/register',
+        json={
+            "email": email
+        }
+    )
 
     response_validation.check_status_code(400, response)
     with allure.step('Проверяем, что пришла ошибка "Missing password"'):
