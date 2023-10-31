@@ -1,4 +1,5 @@
 requests~=2.31.0
 pytest
-jsonschema
+jsonschema~=4.19.1
 allure-pytest
+curlify~=2.2.1
