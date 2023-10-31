@@ -12,7 +12,7 @@ def reqres_api(method, url, **kwargs):
     base_url = "https://reqres.in"
     new_url = base_url + url
     method = method.upper()
-    with allure.step(f'Отправляем запрос {method} {url} {args if len(args) != 0 else ''}'):
+    with allure.step(f'Отправляем запрос {method} {url} {args if len(args) != 0 else ""} '):
         with sessions.Session() as session:
             response = session.request(method=method, url=new_url, **kwargs)
             message = to_curl(response.request)
